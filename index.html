@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3Dプリントサービス プロトタイプ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 font-sans text-gray-800">
+
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-3xl font-bold tracking-tight mb-6 text-slate-800 text-center">爆速3Dプリント</h1>
+
+  <div class="bg-white p-8 rounded-[32px] shadow-xl mb-6 border border-slate-200/80" id="step1">
+    <h2 class="text-xl font-semibold mb-4 border-b pb-2">1. 3Dモデルの準備</h2>
+    
+    <div class="grid gap-4 sm:grid-cols-2 mb-6">
+      <label class="cursor-pointer">
+        <input type="radio" name="method" value="upload" checked class="peer sr-only">
+        <div class="rounded-3xl border border-gray-200 bg-slate-50 p-5 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+          <div class="text-lg font-semibold">3Dモデルをアップロード</div>
+          <p class="mt-2 text-sm text-gray-500">STL形式ファイルを選択してアップロードします。</p>
+        </div>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="method" value="generate" class="peer sr-only">
+        <div class="rounded-3xl border border-gray-200 bg-slate-50 p-5 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+          <div class="text-lg font-semibold">テキスト/画像から生成</div>
+          <p class="mt-2 text-sm text-gray-500">簡単な指示で3Dモデルを生成するデモです。</p>
+        </div>
+      </label>
+    </div>
+
+    <div id="upload-area">
+      <p class="text-sm text-gray-500 mb-2">STL形式のファイルを選択するか、ここにドラッグ＆ドロップしてください。</p>
+      <label id="drop-zone" for="stl-file" class="mb-4 flex min-h-[180px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-500 transition hover:border-blue-400 hover:bg-white">
+        <div class="pointer-events-none">
+          <p class="font-semibold text-slate-700 mb-2">ファイルを選択またはドラッグ＆ドロップ</p>
+          <p>STL ファイルをここにドロップしてください</p>
+        </div>
+        <input type="file" id="stl-file" accept=".stl" class="sr-only">
+      </label>
+      <div id="stl-file-name" class="text-sm text-slate-600 mb-4 hidden"></div>
+      <div id="viewer" class="w-full h-80 bg-gray-200 mb-4 hidden rounded relative shadow-inner cursor-move"></div>
+      
+      <button id="btn-ok-model" class="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded hidden hover:bg-blue-700 font-bold transition">OK (このモデルで確定)</button>
+    </div>
+
+    <div id="generate-area" class="hidden">
+      <p class="text-sm text-gray-500 mb-2">作りたい3Dモデルの指示を入力してください。</p>
+      <textarea class="w-full border border-gray-300 p-3 mb-3 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" rows="3" placeholder="例: 可愛い猫のフィギュア"></textarea>
+      
+      <div class="flex items-center space-x-4 mb-4">
+        <button id="btn-generate" class="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 font-bold transition">生成する</button>
+      </div>
+      
+      <div id="gen-result" class="hidden mb-4 p-4 bg-green-50 text-green-700 border border-green-200 rounded flex items-center">
+        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        3Dモデルの生成が完了しました！
+      </div>
+      
+      <button id="btn-ok-gen" class="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded hidden hover:bg-blue-700 font-bold transition">OK (このモデルで確定)</button>
+    </div>
+  </div>
+
+  <div class="hidden bg-white p-8 rounded-[32px] shadow-xl mb-6 opacity-40 pointer-events-none transition-opacity duration-300 border border-slate-200/80" id="step2">
+    <h2 class="text-xl font-semibold mb-4 border-b pb-2">2. 注文詳細の選択</h2>
+    
+    <div class="mb-5">
+      <p class="block font-medium mb-4 text-gray-700">材料 (FDM方式樹脂)</p>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <label class="cursor-pointer">
+          <input type="radio" name="material" value="PLA" checked class="peer sr-only">
+          <div class="rounded-3xl border border-gray-200 bg-slate-50 p-4 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+            <div class="font-semibold">PLA</div>
+            <p class="text-sm text-gray-500">扱いやすく標準的</p>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="material" value="ABS" class="peer sr-only">
+          <div class="rounded-3xl border border-gray-200 bg-slate-50 p-4 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+            <div class="font-semibold">ABS</div>
+            <p class="text-sm text-gray-500">高強度・耐熱性</p>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="material" value="PETG" class="peer sr-only">
+          <div class="rounded-3xl border border-gray-200 bg-slate-50 p-4 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+            <div class="font-semibold">PETG</div>
+            <p class="text-sm text-gray-500">PLAとABSの中間の性質</p>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="material" value="TPU" class="peer sr-only">
+          <div class="rounded-3xl border border-gray-200 bg-slate-50 p-4 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+            <div class="font-semibold">TPU</div>
+            <p class="text-sm text-gray-500">ゴムのように柔軟</p>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="material" value="ASA" class="peer sr-only">
+          <div class="rounded-3xl border border-gray-200 bg-slate-50 p-4 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+            <div class="font-semibold">ASA</div>
+            <p class="text-sm text-gray-500">耐候性に優れ屋外向け</p>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="material" value="PC" class="peer sr-only">
+          <div class="rounded-3xl border border-gray-200 bg-slate-50 p-4 shadow-sm transition duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-900 hover:border-gray-300 hover:bg-white">
+            <div class="font-semibold">PC</div>
+            <p class="text-sm text-gray-500">超高強度</p>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="mb-5">
+      <label class="block font-medium mb-2 text-gray-700">個数</label>
+      <input type="number" id="quantity" min="1" max="100" value="1" class="w-full border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+
+    <div class="mb-5">
+      <label class="block font-medium mb-2 text-gray-700">納期</label>
+      <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-6">
+        <label class="flex items-center cursor-pointer p-3 border rounded hover:bg-gray-50 flex-1">
+          <input type="radio" name="delivery" value="通常便" checked class="w-5 h-5 text-blue-600"> 
+          <span class="ml-2">通常便 (～3日)</span>
+        </label>
+        <label class="flex items-center cursor-pointer p-3 border rounded hover:bg-gray-50 flex-1">
+          <input type="radio" name="delivery" value="お急ぎ便" class="w-5 h-5 text-blue-600"> 
+          <span class="ml-2">お急ぎ便 (翌日 / 追加料金)</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center pb-10">
+    <button id="btn-submit" class="bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xl font-bold px-10 py-4 rounded-full shadow-2xl opacity-40 pointer-events-none transition-all duration-300 hover:from-emerald-600 hover:to-teal-600 hover:shadow-2xl transform hover:-translate-y-1">
+      3Dプリント依頼
+    </button>
+  </div>
+</div>
+
+<div id="order-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/40 px-4 py-8">
+  <div class="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-black/10">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <p class="text-sm text-green-600 font-semibold">3Dプリント依頼</p>
+        <h2 class="text-2xl font-bold text-gray-900">注文内容の確認</h2>
+      </div>
+      <button id="modal-close" class="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 focus:outline-none" aria-label="閉じる">
+        ×
+      </button>
+    </div>
+    <div class="space-y-3 text-gray-700">
+      <p class="text-sm text-gray-500">以下の内容で注文を受け付けました。内容を確認し、「閉じる」を押してください。</p>
+      <div id="modal-details" class="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed"></div>
+    </div>
+    <div class="mt-6 text-right">
+      <button id="modal-close-button" class="inline-flex justify-center rounded-full bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 focus:outline-none">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  // --- DOM要素の取得 ---
+  const methodRadios = document.querySelectorAll('input[name="method"]');
+  const uploadArea = document.getElementById('upload-area');
+  const generateArea = document.getElementById('generate-area');
+  
+  const stlFileInput = document.getElementById('stl-file');
+  const viewerEl = document.getElementById('viewer');
+  const btnOkModel = document.getElementById('btn-ok-model');
+  
+  const btnGenerate = document.getElementById('btn-generate');
+  const genResult = document.getElementById('gen-result');
+  const btnOkGen = document.getElementById('btn-ok-gen');
+
+  const step2 = document.getElementById('step2');
+  const btnSubmit = document.getElementById('btn-submit');
+
+  // --- タブ切り替え ---
+  methodRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'upload') {
+        uploadArea.classList.remove('hidden');
+        generateArea.classList.add('hidden');
+      } else {
+        uploadArea.classList.add('hidden');
+        generateArea.classList.remove('hidden');
+      }
+    });
+  });
+
+  // --- Three.js ビューアのセットアップ ---
+  let scene, camera, renderer, controls, mesh;
+
+  function initThreeJs() {
+    if (scene) return; // 既に初期化されていればスキップ
+    const width = viewerEl.clientWidth;
+    const height = viewerEl.clientHeight;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe5e7eb); // 背景色(グレー)
+
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    viewerEl.appendChild(renderer.domElement);
+
+    // マウスでモデルを回転・ズームできるようにする
+    controls = new OrbitControls(camera, renderer.domElement);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ウィンドウリサイズ対応
+    window.addEventListener('resize', () => {
+      if(!viewerEl.classList.contains('hidden')){
+        camera.aspect = viewerEl.clientWidth / viewerEl.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(viewerEl.clientWidth, viewerEl.clientHeight);
+      }
+    });
+  }
+
+  const dropZone = document.getElementById('drop-zone');
+  const stlFileName = document.getElementById('stl-file-name');
+
+  function handleStlFile(file) {
+    if (!file || !file.name.toLowerCase().endsWith('.stl')) return;
+
+    stlFileName.textContent = `選択されたファイル: ${file.name}`;
+    stlFileName.classList.remove('hidden');
+    viewerEl.classList.remove('hidden');
+    initThreeJs();
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      // 既存のモデルがあれば削除
+      if (mesh) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+      }
+
+      const contents = event.target.result;
+      const geometry = new STLLoader().parse(contents);
+      
+      // モデルを原点に合わせる
+      geometry.center();
+      geometry.computeVertexNormals();
+
+      // 光源設定がなくても形状が分かりやすいマテリアルを使用
+      const material = new THREE.MeshNormalMaterial();
+      mesh = new THREE.Mesh(geometry, material);
+      
+      // 姿勢を上向きに補正 (STLエクスポートソフトによって向きが違うため)
+      mesh.rotation.x = -Math.PI / 2;
+      
+      scene.add(mesh);
+
+      // モデルのサイズに合わせてカメラの距離を自動調整
+      geometry.computeBoundingBox();
+      const box = geometry.boundingBox;
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      
+      camera.position.set(0, maxDim, maxDim * 2);
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      // OKボタンを表示
+      btnOkModel.classList.remove('hidden');
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // --- STLファイルの読み込み処理 ---
+  stlFileInput.addEventListener('change', (e) => {
+    handleStlFile(e.target.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('border-blue-500', 'bg-white');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('border-blue-500', 'bg-white');
+    });
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    handleStlFile(file);
+  });
+
+  // --- モデル生成（モック）の処理 ---
+  btnGenerate.addEventListener('click', () => {
+    btnGenerate.innerText = 'AIで生成中...';
+    btnGenerate.disabled = true;
+    btnGenerate.classList.add('opacity-70', 'cursor-not-allowed');
+    
+    // API通信を模した遅延 (1.5秒)
+    setTimeout(() => {
+      btnGenerate.innerText = '再生成する';
+      btnGenerate.disabled = false;
+      btnGenerate.classList.remove('opacity-70', 'cursor-not-allowed');
+      genResult.classList.remove('hidden');
+      btnOkGen.classList.remove('hidden');
+    }, 1500);
+  });
+
+  // --- OKボタン押下時（ステップ2の解放） ---
+  function confirmModel() {
+    // ステップ2を表示し、送信ボタンのロックを解除
+    step2.classList.remove('hidden', 'opacity-40', 'pointer-events-none');
+    btnSubmit.classList.remove('opacity-40', 'pointer-events-none');
+    
+    // スクロールして次へ誘導
+    step2.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  btnOkModel.addEventListener('click', confirmModel);
+  btnOkGen.addEventListener('click', confirmModel);
+
+  const orderModal = document.getElementById('order-modal');
+  const modalDetails = document.getElementById('modal-details');
+  const modalClose = document.getElementById('modal-close');
+  const modalCloseButton = document.getElementById('modal-close-button');
+
+  function showModal(message) {
+    modalDetails.innerHTML = message.replace(/\n/g, '<br>');
+    orderModal.classList.remove('hidden');
+  }
+
+  function hideModal() {
+    orderModal.classList.add('hidden');
+  }
+
+  modalClose.addEventListener('click', hideModal);
+  modalCloseButton.addEventListener('click', hideModal);
+
+  // --- 最終依頼アクション ---
+  btnSubmit.addEventListener('click', () => {
+    const materialRadio = document.querySelector('input[name="material"]:checked');
+    const material = materialRadio ? materialRadio.value : 'PLA';
+    const quantity = document.getElementById('quantity').value;
+    const delivery = document.querySelector('input[name="delivery"]:checked').value;
+
+    const message = `以下の内容で3Dプリント依頼を受け付けました！\n` +
+                    `【材料】 ${material}\n` +
+                    `【個数】 ${quantity}個\n` +
+                    `【納期】 ${delivery}`;
+
+    showModal(message);
+  });
+</script>
+</body>
+</html>
